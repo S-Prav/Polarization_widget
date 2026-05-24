@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EM Wave Polarisation</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;600&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%; overflow: hidden;
+    background: #070E17;
+    font-family: 'DM Sans', system-ui, sans-serif;
+  }
+
+  /* ── Layout ──────────────────────────────── */
+  #app { width: 100%; height: 100%; display: flex; flex-direction: column; position: relative; }
+
+  #three-wrap {
+    flex: 1;
+    position: relative;
+    min-height: 0;
+    overflow: hidden;
+  }
+  #three-wrap canvas { display: block; width: 100% !important; height: 100% !important; }
+
+  /* ── Floating label badges ───────────────── */
+  .field-badge {
+    position: absolute;
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 12px 6px 8px;
+    border-radius: 40px;
+    backdrop-filter: blur(12px);
+    pointer-events: none;
+    user-select: none;
+    transition: opacity 0.3s;
+  }
+  .field-badge .dot {
+    width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+  }
+  .field-badge .name {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px; font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+  .field-badge .desc {
+    font-size: 11px; opacity: 0.7; letter-spacing: 0.3px;
+  }
+  #badge-e {
+    top: 14px; right: 14px;
+    background: rgba(0,180,210,0.12);
+    border: 1px solid rgba(0,200,224,0.3);
+    color: #00C8E0;
+  }
+  #badge-b {
+    top: 52px; right: 14px;
+    background: rgba(245,166,35,0.12);
+    border: 1px solid rgba(245,166,35,0.3);
+    color: #F5A623;
+  }
+  #badge-dir {
+    bottom: 8px; left: 50%; transform: translateX(-50%);
+    background: rgba(120,160,200,0.1);
+    border: 1px solid rgba(120,160,200,0.2);
+    color: #7FB3D3;
+    font-size: 10px;
+    font-family: 'Space Mono', monospace;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 5px 14px;
+    border-radius: 4px;
+  }
+
+  /* ── Angle overlay (top-left) ────────────── */
+  #angle-overlay {
+    position: absolute;
+    top: 14px; left: 14px;
+    pointer-events: none;
+  }
+  #angle-overlay .theta-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px; color: #3A5A78;
+    letter-spacing: 1px; text-transform: uppercase;
+    margin-bottom: 2px;
+  }
+  #angle-overlay .theta-val {
+    font-family: 'Space Mono', monospace;
+    font-size: 28px; font-weight: 700;
+    color: #E8F4FF;
+    line-height: 1;
+    text-shadow: 0 0 20px rgba(0,200,224,0.3);
+  }
+  #angle-overlay .theta-symbol {
+    font-size: 14px; color: #00C8E0; margin-left: 1px;
+  }
+
+  /* ── Bottom control panel ────────────────── */
+  #panel {
+    height: 88px;
+    background: linear-gradient(0deg, #040A10 0%, #070E17 60%, transparent 100%);
+    display: flex;
+    align-items: center;
+    padding: 0 24px 8px;
+    gap: 20px;
+    flex-shrink: 0;
+    position: relative;
+  }
+
+  /* Dial canvas */
+  #dial-wrap {
+    position: relative; flex-shrink: 0;
+  }
+  #dial {
+    display: block;
+    border-radius: 50%;
+    border: 1.5px solid #1A3550;
+  }
+  #dial-center-label {
+    position: absolute;
+    bottom: -16px; left: 50%; transform: translateX(-50%);
+    font-size: 9px; color: #3A5A78;
+    font-family: 'Space Mono', monospace;
+    white-space: nowrap;
+  }
+
+  /* Slider section */
+  .ctrl-group {
+    flex: 1;
+    display: flex; flex-direction: column; gap: 10px;
+    min-width: 0;
+  }
+  .ctrl-top {
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .ctrl-label {
+    font-size: 10px; font-family: 'Space Mono', monospace;
+    color: #3A5A78; letter-spacing: 1.5px; text-transform: uppercase;
+  }
+
+  /* Angle ticks display */
+  .ticks {
+    display: flex; justify-content: space-between;
+    font-size: 9px; font-family: 'Space Mono', monospace;
+    color: #233D55; margin-top: -4px;
+    padding: 0 1px;
+  }
+
+  /* Custom range slider */
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 4px;
+    border-radius: 2px; outline: none; cursor: pointer;
+    background: #0E1E2E;
+    position: relative;
+  }
+  input[type=range]::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0;
+    height: 100%;
+    width: var(--fill, 0%);
+    background: linear-gradient(90deg, #0080A0, #00C8E0);
+    border-radius: 2px;
+    pointer-events: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: #070E17;
+    border: 2.5px solid #00C8E0;
+    box-shadow: 0 0 12px rgba(0,200,224,0.5), inset 0 0 6px rgba(0,200,224,0.15);
+    cursor: grab;
+    transition: box-shadow 0.2s, transform 0.1s;
+    position: relative; z-index: 1;
+  }
+  input[type=range]::-webkit-slider-thumb:hover {
+    box-shadow: 0 0 22px rgba(0,200,224,0.7), inset 0 0 8px rgba(0,200,224,0.2);
+    transform: scale(1.12);
+  }
+  input[type=range]::-webkit-slider-thumb:active { cursor: grabbing; }
+
+  /* Right controls */
+  .right-controls {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    flex-shrink: 0;
+  }
+
+  /* Auto-rotate toggle */
+  #btn-auto {
+    background: #0E1E2E;
+    border: 1.5px solid #1A3550;
+    color: #4A7FA0;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px; letter-spacing: 0.5px;
+    padding: 6px 12px; border-radius: 4px;
+    cursor: pointer; transition: all 0.2s;
+    white-space: nowrap;
+    display: flex; align-items: center; gap: 5px;
+  }
+  #btn-auto .icon { font-size: 10px; transition: transform 0.3s; }
+  #btn-auto:hover { border-color: #00C8E0; color: #00C8E0; }
+  #btn-auto.active {
+    border-color: #F5A623; color: #F5A623;
+    background: rgba(245,166,35,0.08);
+  }
+  #btn-auto.active .icon { animation: spin-icon 2s linear infinite; }
+  @keyframes spin-icon { to { transform: rotate(360deg); } }
+
+  /* Speed control */
+  .speed-row {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 9px; color: #2A4560;
+    font-family: 'Space Mono', monospace;
+  }
+  .speed-btn {
+    background: none; border: 1px solid #1A3550;
+    color: #3A5A78; width: 18px; height: 18px;
+    border-radius: 3px; cursor: pointer; font-size: 10px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s; padding: 0;
+  }
+  .speed-btn:hover { border-color: #3A7A9A; color: #5A9ABB; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="three-wrap">
+    <!-- Three.js renders here -->
+    <div class="field-badge" id="badge-e">
+      <div class="dot" style="background:#00C8E0; box-shadow:0 0 8px #00C8E0;"></div>
+      <span class="name">E</span>
+      <span class="desc">Electric Field</span>
+    </div>
+    <div class="field-badge" id="badge-b">
+      <div class="dot" style="background:#F5A623; box-shadow:0 0 8px #F5A623;"></div>
+      <span class="name">B</span>
+      <span class="desc">Magnetic Field</span>
+    </div>
+    <div class="field-badge" id="badge-dir">→ &nbsp; Direction of Propagation</div>
+
+    <div id="angle-overlay">
+      <div class="theta-label">Polarisation Angle</div>
+      <div class="theta-val"><span id="theta-num">0</span><span class="theta-symbol">°</span></div>
+    </div>
+  </div>
+
+  <div id="panel">
+    <!-- Mini dial -->
+    <div id="dial-wrap">
+      <canvas id="dial" width="64" height="64"></canvas>
+      <div id="dial-center-label">E·B plane</div>
+    </div>
+
+    <!-- Slider -->
+    <div class="ctrl-group">
+      <div class="ctrl-top">
+        <span class="ctrl-label">θ &nbsp;— Polarisation Angle</span>
+      </div>
+      <input type="range" id="slider" min="0" max="360" value="0" step="0.5">
+      <div class="ticks">
+        <span>0°</span><span>45°</span><span>90°</span>
+        <span>135°</span><span>180°</span><span>225°</span>
+        <span>270°</span><span>315°</span><span>360°</span>
+      </div>
+    </div>
+
+    <!-- Right controls -->
+    <div class="right-controls">
+      <button id="btn-auto"><span class="icon">↻</span> Auto Rotate</button>
+      <div class="speed-row">
+        <span>Speed</span>
+        <button class="speed-btn" id="btn-slower">−</button>
+        <span id="speed-label">1×</span>
+        <button class="speed-btn" id="btn-faster">+</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Three.js r128 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════════════
+//  CONFIG
+// ═══════════════════════════════════════════════════════════════════
+const CFG = {
+  ZMIN: -5.5, ZMAX: 5.5,
+  AMP: 1.55,         // wave amplitude (units)
+  K:   1.0,          // spatial frequency
+  OMEGA: 1.4,        // temporal frequency
+  N_CURVE: 280,      // curve resolution
+  N_ARROWS: 12,      // arrows per field
+  ARROW_HEAD_L: 0.28,
+  ARROW_HEAD_W: 0.13,
+  CAM_POS: [8.5, 5.2, -5.5],
+  CAM_LOOK: [0, 0, 1.5],
+};
+
+// ═══════════════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════════════
+let theta = 0;         // polarisation angle radians
+let clock = 0;
+let lastTs = null;
+let autoRotate = false;
+let speedMult = 1.0;
+const SPEEDS = [0.25, 0.5, 1, 1.5, 2.5];
+let speedIdx = 2;
+
+// ═══════════════════════════════════════════════════════════════════
+//  THREE.JS SETUP
+// ═══════════════════════════════════════════════════════════════════
+const wrap = document.getElementById('three-wrap');
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(0x070E17, 1);
+wrap.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+
+const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 100);
+camera.position.set(...CFG.CAM_POS);
+camera.lookAt(...CFG.CAM_LOOK);
+
+// ── Subtle fog for depth ─────────────────────────────────────────
+scene.fog = new THREE.FogExp2(0x070E17, 0.028);
+
+// ═══════════════════════════════════════════════════════════════════
+//  SCENE OBJECTS
+// ═══════════════════════════════════════════════════════════════════
+
+// ── 1. Propagation axis ──────────────────────────────────────────
+{
+  const pts = [
+    new THREE.Vector3(0, 0, CFG.ZMIN - 0.2),
+    new THREE.Vector3(0, 0, CFG.ZMAX + 0.4),
+  ];
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  const mat = new THREE.LineBasicMaterial({ color: 0x2A5070, transparent: true, opacity: 0.7 });
+  scene.add(new THREE.Line(geo, mat));
+
+  // Arrowhead cone
+  const coneG = new THREE.ConeGeometry(0.075, 0.38, 10);
+  const coneM = new THREE.MeshBasicMaterial({ color: 0x4A8AAA });
+  const coneMesh = new THREE.Mesh(coneG, coneM);
+  coneMesh.position.set(0, 0, CFG.ZMAX + 0.59);
+  coneMesh.rotation.x = Math.PI / 2;
+  scene.add(coneMesh);
+
+  // Tick marks along axis
+  const tickMat = new THREE.LineBasicMaterial({ color: 0x1A3548, transparent: true, opacity: 0.6 });
+  for (let z = Math.ceil(CFG.ZMIN); z <= Math.floor(CFG.ZMAX); z++) {
+    const tGeo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-0.08, 0, z),
+      new THREE.Vector3(0.08, 0, z),
+    ]);
+    scene.add(new THREE.Line(tGeo, tickMat));
+  }
+}
+
+// ── 2. Glow tube along axis (very faint) ────────────────────────
+{
+  const tubeGeo = new THREE.CylinderGeometry(0.015, 0.015, CFG.ZMAX - CFG.ZMIN + 1, 8);
+  const tubeMat = new THREE.MeshBasicMaterial({ color: 0x1A4060, transparent: true, opacity: 0.4 });
+  const tube = new THREE.Mesh(tubeGeo, tubeMat);
+  tube.rotation.x = Math.PI / 2;
+  tube.position.set(0, 0, (CFG.ZMIN + CFG.ZMAX) / 2);
+  scene.add(tube);
+}
+
+// ── 3. E-field wave curve ────────────────────────────────────────
+const eBuf  = new Float32Array(CFG.N_CURVE * 3);
+const eGlowBuf = new Float32Array(CFG.N_CURVE * 3);
+const eGeo  = new THREE.BufferGeometry();
+eGeo.setAttribute('position', new THREE.BufferAttribute(eBuf, 3));
+
+// Main curve
+const eCurve = new THREE.Line(eGeo,
+  new THREE.LineBasicMaterial({ color: 0x00C8E0, transparent: true, opacity: 0.95 }));
+scene.add(eCurve);
+
+// Glow (wider, more transparent duplicate — different buffer for glow)
+const eGlowGeo = new THREE.BufferGeometry();
+eGlowGeo.setAttribute('position', new THREE.BufferAttribute(eGlowBuf, 3));
+const eCurveGlow = new THREE.Line(eGlowGeo,
+  new THREE.LineBasicMaterial({
+    color: 0x00EEFF, transparent: true, opacity: 0.18,
+    blending: THREE.AdditiveBlending, depthWrite: false,
+  }));
+scene.add(eCurveGlow);
+
+// ── 4. B-field wave curve ────────────────────────────────────────
+const bBuf  = new Float32Array(CFG.N_CURVE * 3);
+const bGlowBuf = new Float32Array(CFG.N_CURVE * 3);
+const bGeo  = new THREE.BufferGeometry();
+bGeo.setAttribute('position', new THREE.BufferAttribute(bBuf, 3));
+
+const bCurve = new THREE.Line(bGeo,
+  new THREE.LineBasicMaterial({ color: 0xF5A623, transparent: true, opacity: 0.95 }));
+scene.add(bCurve);
+
+const bGlowGeo = new THREE.BufferGeometry();
+bGlowGeo.setAttribute('position', new THREE.BufferAttribute(bGlowBuf, 3));
+const bCurveGlow = new THREE.Line(bGlowGeo,
+  new THREE.LineBasicMaterial({
+    color: 0xFFCC44, transparent: true, opacity: 0.15,
+    blending: THREE.AdditiveBlending, depthWrite: false,
+  }));
+scene.add(bCurveGlow);
+
+// ── 5. Polarisation plane (E oscillation plane) ─────────────────
+const planeGroup = new THREE.Group();
+scene.add(planeGroup);
+
+const planeW = CFG.AMP * 2.6, planeH = (CFG.ZMAX - CFG.ZMIN) + 1.2;
+const planeGeo = new THREE.PlaneGeometry(planeW, planeH);
+const planeMat = new THREE.MeshBasicMaterial({
+  color: 0x00C8E0, transparent: true, opacity: 0.04,
+  side: THREE.DoubleSide, depthWrite: false,
+  blending: THREE.AdditiveBlending,
+});
+const planeMesh = new THREE.Mesh(planeGeo, planeMat);
+planeMesh.rotation.x = Math.PI / 2;  // -> XZ plane
+planeGroup.add(planeMesh);
+
+// Plane border lines (two long edges of the plane)
+const planeBorderMat = new THREE.LineBasicMaterial({
+  color: 0x00C8E0, transparent: true, opacity: 0.15,
+});
+const topEdge = CFG.AMP;
+[-1, 1].forEach(side => {
+  const bGeo2 = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(side * topEdge, 0, CFG.ZMIN),
+    new THREE.Vector3(side * topEdge, 0, CFG.ZMAX),
+  ]);
+  const bLine = new THREE.Line(bGeo2, planeBorderMat);
+  planeGroup.add(bLine);
+});
+
+// ── 6. B polarisation plane (B oscillation plane) ───────────────
+const bPlaneGroup = new THREE.Group();
+scene.add(bPlaneGroup);
+
+const bPlaneMesh = new THREE.Mesh(planeGeo.clone(), new THREE.MeshBasicMaterial({
+  color: 0xF5A623, transparent: true, opacity: 0.025,
+  side: THREE.DoubleSide, depthWrite: false,
+  blending: THREE.AdditiveBlending,
+}));
+bPlaneMesh.rotation.x = Math.PI / 2;
+bPlaneGroup.add(bPlaneMesh);
+
+const bPlaneBorderMat = new THREE.LineBasicMaterial({
+  color: 0xF5A623, transparent: true, opacity: 0.12,
+});
+[-1, 1].forEach(side => {
+  const bGeo3 = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(side * topEdge, 0, CFG.ZMIN),
+    new THREE.Vector3(side * topEdge, 0, CFG.ZMAX),
+  ]);
+  bPlaneGroup.add(new THREE.Line(bGeo3, bPlaneBorderMat));
+});
+
+// ── 7. E arrows ─────────────────────────────────────────────────
+const arrowZPositions = Array.from({ length: CFG.N_ARROWS }, (_, i) =>
+  CFG.ZMIN + 0.8 + i * ((CFG.ZMAX - CFG.ZMIN - 1.0) / (CFG.N_ARROWS - 1))
+);
+
+const eArrows = arrowZPositions.map(z => {
+  const a = new THREE.ArrowHelper(
+    new THREE.Vector3(1, 0, 0),
+    new THREE.Vector3(0, 0, z),
+    1, 0x00C8E0,
+    CFG.ARROW_HEAD_L, CFG.ARROW_HEAD_W
+  );
+  // Make the arrow line slightly transparent
+  a.line.material.transparent = true;
+  a.line.material.opacity = 0.9;
+  scene.add(a);
+  return a;
+});
+
+// ── 8. B arrows ─────────────────────────────────────────────────
+const bArrows = arrowZPositions.map(z => {
+  const a = new THREE.ArrowHelper(
+    new THREE.Vector3(0, 1, 0),
+    new THREE.Vector3(0, 0, z),
+    1, 0xF5A623,
+    CFG.ARROW_HEAD_L, CFG.ARROW_HEAD_W
+  );
+  a.line.material.transparent = true;
+  a.line.material.opacity = 0.9;
+  scene.add(a);
+  return a;
+});
+
+// ── 9. Glowing dots at arrow tips (sphere markers) ──────────────
+const eDotMat = new THREE.MeshBasicMaterial({
+  color: 0x00EEFF, transparent: true, opacity: 0.7,
+  blending: THREE.AdditiveBlending, depthWrite: false,
+});
+const bDotMat = new THREE.MeshBasicMaterial({
+  color: 0xFFCC44, transparent: true, opacity: 0.7,
+  blending: THREE.AdditiveBlending, depthWrite: false,
+});
+const dotGeo = new THREE.SphereGeometry(0.055, 8, 8);
+
+const eDots = arrowZPositions.map(() => {
+  const m = new THREE.Mesh(dotGeo, eDotMat.clone());
+  scene.add(m); return m;
+});
+const bDots = arrowZPositions.map(() => {
+  const m = new THREE.Mesh(dotGeo, bDotMat.clone());
+  scene.add(m); return m;
+});
+
+// ── 10. Origin cross-section ring ───────────────────────────────
+{
+  // Small ring at z=0 showing the cross-section
+  const ringGeo = new THREE.RingGeometry(0.03, 0.06, 24);
+  const ringMat = new THREE.MeshBasicMaterial({ color: 0x4A8AAA, transparent: true, opacity: 0.5, side: THREE.DoubleSide });
+  const ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.rotation.x = Math.PI / 2;
+  scene.add(ring);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  SCENE UPDATE
+// ═══════════════════════════════════════════════════════════════════
+const _eDir = new THREE.Vector3();
+const _bDir = new THREE.Vector3();
+
+function updateScene(t) {
+  const ct = Math.cos(theta), st = Math.sin(theta);
+  // B direction: 90° ahead of E (cross product ẑ × E)
+  // ẑ × (ct, st, 0) = (st*0 - 0*0, 0*ct - 0*0, 0*st - ct*0) 
+  // Wait: (0,0,1) × (ct,st,0) = (0*0 - 1*st, 1*ct - 0*0, 0*st - 0*ct) = (-st, ct, 0)
+  const bct = -st, bst = ct;  // B direction = (-sin θ, cos θ, 0)
+
+  // ── Update E curve ────────────────────────────────────────────
+  for (let i = 0; i < CFG.N_CURVE; i++) {
+    const z = CFG.ZMIN + (i / (CFG.N_CURVE - 1)) * (CFG.ZMAX - CFG.ZMIN);
+    const v = CFG.AMP * Math.sin(CFG.K * z - CFG.OMEGA * t);
+    eBuf[i*3]   = v * ct;
+    eBuf[i*3+1] = v * st;
+    eBuf[i*3+2] = z;
+    // Glow slightly offset (same data, rendered with additive blending)
+    eGlowBuf[i*3]   = v * ct;
+    eGlowBuf[i*3+1] = v * st;
+    eGlowBuf[i*3+2] = z;
+  }
+  eGeo.attributes.position.needsUpdate = true;
+  eGlowGeo.attributes.position.needsUpdate = true;
+
+  // ── Update B curve ────────────────────────────────────────────
+  for (let i = 0; i < CFG.N_CURVE; i++) {
+    const z = CFG.ZMIN + (i / (CFG.N_CURVE - 1)) * (CFG.ZMAX - CFG.ZMIN);
+    const v = CFG.AMP * Math.sin(CFG.K * z - CFG.OMEGA * t);
+    bBuf[i*3]   = v * bct;
+    bBuf[i*3+1] = v * bst;
+    bBuf[i*3+2] = z;
+    bGlowBuf[i*3]   = v * bct;
+    bGlowBuf[i*3+1] = v * bst;
+    bGlowBuf[i*3+2] = z;
+  }
+  bGeo.attributes.position.needsUpdate = true;
+  bGlowGeo.attributes.position.needsUpdate = true;
+
+  // ── Update arrows ─────────────────────────────────────────────
+  for (let i = 0; i < CFG.N_ARROWS; i++) {
+    const z = arrowZPositions[i];
+    const v = CFG.AMP * Math.sin(CFG.K * z - CFG.OMEGA * t);
+    const absV = Math.abs(v);
+    const sign = v >= 0 ? 1 : -1;
+
+    if (absV > 0.06) {
+      // E arrow
+      _eDir.set(sign * ct, sign * st, 0).normalize();
+      eArrows[i].setDirection(_eDir);
+      const hL = Math.min(CFG.ARROW_HEAD_L, absV * 0.32);
+      const hW = Math.min(CFG.ARROW_HEAD_W, absV * 0.18);
+      eArrows[i].setLength(absV, hL, hW);
+      eArrows[i].visible = true;
+
+      // E dot at tip
+      eDots[i].position.set(
+        v * ct + sign * ct * 0.05,
+        v * st + sign * st * 0.05,
+        z
+      );
+      eDots[i].visible = true;
+      eDots[i].material.opacity = 0.5 + absV / CFG.AMP * 0.4;
+
+      // B arrow
+      _bDir.set(sign * bct, sign * bst, 0).normalize();
+      bArrows[i].setDirection(_bDir);
+      bArrows[i].setLength(absV, hL, hW);
+      bArrows[i].visible = true;
+
+      // B dot at tip
+      bDots[i].position.set(
+        v * bct + sign * bct * 0.05,
+        v * bst + sign * bst * 0.05,
+        z
+      );
+      bDots[i].visible = true;
+      bDots[i].material.opacity = 0.5 + absV / CFG.AMP * 0.4;
+    } else {
+      eArrows[i].visible = false;
+      bArrows[i].visible = false;
+      eDots[i].visible = false;
+      bDots[i].visible = false;
+    }
+  }
+
+  // ── Update polarisation planes ────────────────────────────────
+  // E plane: contains ẑ and (ct, st, 0) → rotate group about Z by theta
+  planeGroup.rotation.z  = theta;
+  // B plane: 90° from E plane → contains ẑ and (-st, ct, 0)
+  bPlaneGroup.rotation.z = theta + Math.PI / 2;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  DIAL (mini 2D canvas indicator)
+// ═══════════════════════════════════════════════════════════════════
+const dialCanvas = document.getElementById('dial');
+const dctx = dialCanvas.getContext('2d');
+
+function drawDial() {
+  const W = dialCanvas.width, H = dialCanvas.height;
+  const cx = W/2, cy = H/2, R = W/2 - 5;
+  dctx.clearRect(0, 0, W, H);
+
+  // Background
+  dctx.beginPath();
+  dctx.arc(cx, cy, R, 0, Math.PI*2);
+  dctx.fillStyle = '#0A151F';
+  dctx.fill();
+
+  // Subtle grid crosses
+  ['#0F1F2F', '#0F1F2F'].forEach((c, i) => {
+    dctx.strokeStyle = c;
+    dctx.lineWidth = 0.5;
+    dctx.setLineDash([1.5, 2.5]);
+    dctx.beginPath();
+    dctx.moveTo(cx - R + 2, cy); dctx.lineTo(cx + R - 2, cy);
+    dctx.moveTo(cx, cy - R + 2); dctx.lineTo(cx, cy + R - 2);
+    dctx.stroke();
+    dctx.setLineDash([]);
+  });
+
+  // Outer ring
+  dctx.beginPath();
+  dctx.arc(cx, cy, R, 0, Math.PI*2);
+  dctx.strokeStyle = '#142233';
+  dctx.lineWidth = 1.5;
+  dctx.stroke();
+
+  // E field direction line + arrowhead
+  const eR = R - 5;
+  const ex1 = cx - Math.cos(theta) * eR, ey1 = cy - Math.sin(theta) * eR;
+  const ex2 = cx + Math.cos(theta) * eR, ey2 = cy + Math.sin(theta) * eR;
+
+  // Glow
+  const eGrad = dctx.createLinearGradient(ex1, ey1, ex2, ey2);
+  eGrad.addColorStop(0, 'rgba(0,200,224,0.1)');
+  eGrad.addColorStop(0.5, 'rgba(0,200,224,0.6)');
+  eGrad.addColorStop(1, 'rgba(0,200,224,0.1)');
+  dctx.beginPath();
+  dctx.moveTo(ex1, ey1); dctx.lineTo(ex2, ey2);
+  dctx.strokeStyle = eGrad;
+  dctx.lineWidth = 4;
+  dctx.stroke();
+  // Main line
+  dctx.beginPath();
+  dctx.moveTo(ex1, ey1); dctx.lineTo(ex2, ey2);
+  dctx.strokeStyle = '#00C8E0';
+  dctx.lineWidth = 1.8;
+  dctx.stroke();
+  // Arrowhead
+  dctx.beginPath();
+  dctx.arc(ex2, ey2, 4, 0, Math.PI*2);
+  dctx.fillStyle = '#00C8E0';
+  dctx.fill();
+
+  // B field direction (perpendicular)
+  const bAngle = theta + Math.PI/2;
+  const bR = R - 5;
+  const bx1 = cx - Math.cos(bAngle) * bR, by1 = cy - Math.sin(bAngle) * bR;
+  const bx2 = cx + Math.cos(bAngle) * bR, by2 = cy + Math.sin(bAngle) * bR;
+
+  const bGrad = dctx.createLinearGradient(bx1, by1, bx2, by2);
+  bGrad.addColorStop(0, 'rgba(245,166,35,0.1)');
+  bGrad.addColorStop(0.5, 'rgba(245,166,35,0.5)');
+  bGrad.addColorStop(1, 'rgba(245,166,35,0.1)');
+  dctx.beginPath();
+  dctx.moveTo(bx1, by1); dctx.lineTo(bx2, by2);
+  dctx.strokeStyle = bGrad;
+  dctx.lineWidth = 3.5;
+  dctx.stroke();
+  dctx.beginPath();
+  dctx.moveTo(bx1, by1); dctx.lineTo(bx2, by2);
+  dctx.strokeStyle = '#F5A623';
+  dctx.lineWidth = 1.5;
+  dctx.stroke();
+  dctx.beginPath();
+  dctx.arc(bx2, by2, 4, 0, Math.PI*2);
+  dctx.fillStyle = '#F5A623';
+  dctx.fill();
+
+  // 90° arc between E and B
+  dctx.beginPath();
+  dctx.arc(cx, cy, 12, theta, theta + Math.PI/2, false);
+  dctx.strokeStyle = 'rgba(200,220,255,0.25)';
+  dctx.lineWidth = 1;
+  dctx.stroke();
+
+  // Center dot
+  dctx.beginPath();
+  dctx.arc(cx, cy, 3, 0, Math.PI*2);
+  dctx.fillStyle = '#E8F4FF';
+  dctx.fill();
+
+  // Labels
+  dctx.font = 'bold 9px Space Mono, monospace';
+  dctx.textAlign = 'center'; dctx.textBaseline = 'middle';
+  dctx.fillStyle = '#00C8E0';
+  const eLX = cx + Math.cos(theta) * (eR - 8), eLY = cy + Math.sin(theta) * (eR - 8);
+  // (skip text label — too cluttered at small size)
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  SLIDER + UI CONTROLS
+// ═══════════════════════════════════════════════════════════════════
+const slider    = document.getElementById('slider');
+const thetaNum  = document.getElementById('theta-num');
+const btnAuto   = document.getElementById('btn-auto');
+const btnSlower = document.getElementById('btn-slower');
+const btnFaster = document.getElementById('btn-faster');
+const speedLbl  = document.getElementById('speed-label');
+
+function setTheta(deg) {
+  theta = (deg * Math.PI) / 180;
+  const d = ((deg % 360) + 360) % 360;
+  thetaNum.textContent = Math.round(d);
+  slider.value = d;
+  // Update slider fill via CSS custom property
+  slider.style.setProperty('--fill', (d / 360 * 100).toFixed(1) + '%');
+}
+
+slider.addEventListener('input', () => {
+  autoRotate = false;
+  btnAuto.classList.remove('active');
+  btnAuto.innerHTML = '<span class="icon">↻</span> Auto Rotate';
+  setTheta(parseFloat(slider.value));
+});
+
+btnAuto.addEventListener('click', () => {
+  autoRotate = !autoRotate;
+  if (autoRotate) {
+    btnAuto.classList.add('active');
+    btnAuto.innerHTML = '<span class="icon">↻</span> Stop';
+  } else {
+    btnAuto.classList.remove('active');
+    btnAuto.innerHTML = '<span class="icon">↻</span> Auto Rotate';
+  }
+});
+
+btnSlower.addEventListener('click', () => {
+  speedIdx = Math.max(0, speedIdx - 1);
+  speedMult = SPEEDS[speedIdx];
+  speedLbl.textContent = speedMult + '×';
+});
+btnFaster.addEventListener('click', () => {
+  speedIdx = Math.min(SPEEDS.length - 1, speedIdx + 1);
+  speedMult = SPEEDS[speedIdx];
+  speedLbl.textContent = speedMult + '×';
+});
+
+setTheta(0);
+
+// ═══════════════════════════════════════════════════════════════════
+//  RESIZE
+// ═══════════════════════════════════════════════════════════════════
+function onResize() {
+  const W = wrap.clientWidth, H = wrap.clientHeight;
+  renderer.setSize(W, H, false);
+  camera.aspect = W / H;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', onResize);
+onResize();
+
+// ═══════════════════════════════════════════════════════════════════
+//  ANIMATION LOOP
+// ═══════════════════════════════════════════════════════════════════
+// Slow camera orbit (tiny bob) — helps perceive 3D without user interaction
+let camOrbit = 0;
+const CAM_ORBIT_R  = 0.4;  // orbit radius (small)
+const CAM_ORBIT_SP = 0.08; // radians/sec
+const CAM_BASE_X   = CFG.CAM_POS[0];
+const CAM_BASE_Y   = CFG.CAM_POS[1];
+const CAM_BASE_Z   = CFG.CAM_POS[2];
+
+function animate(ts) {
+  requestAnimationFrame(animate);
+
+  // Delta time
+  if (lastTs === null) lastTs = ts;
+  const dt = Math.min((ts - lastTs) / 1000, 0.05);
+  lastTs = ts;
+
+  clock += dt * 1.0;  // wave clock
+
+  // Auto-rotate polarisation
+  if (autoRotate) {
+    const newDeg = (theta * 180 / Math.PI + speedMult * 30 * dt) % 360;
+    setTheta(newDeg);
+  }
+
+  // Gentle camera bob
+  camOrbit += CAM_ORBIT_SP * dt;
+  camera.position.x = CAM_BASE_X + Math.cos(camOrbit) * CAM_ORBIT_R;
+  camera.position.y = CAM_BASE_Y + Math.sin(camOrbit * 0.7) * CAM_ORBIT_R * 0.5;
+  camera.lookAt(...CFG.CAM_LOOK);
+
+  updateScene(clock);
+  drawDial();
+  renderer.render(scene, camera);
+}
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
